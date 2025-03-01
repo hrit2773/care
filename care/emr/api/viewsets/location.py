@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.timezone import now
 from django_filters import rest_framework as filters
 from drf_spectacular.utils import extend_schema
@@ -75,6 +76,16 @@ class FacilityLocationViewSet(EMRModelViewSet):
         if FacilityLocation.objects.filter(parent=instance).exists():
             raise ValidationError("Location has active children")
         # TODO Add validation to check if patient association exists
+
+    def perform_destroy(self, instance):
+        parent = instance.parent
+        with transaction.atomic():
+            super().perform_destroy(instance)
+            if parent:
+                parent.has_children = FacilityLocation.objects.filter(
+                    parent=parent
+                ).exists()
+                parent.save(update_fields=["has_children"])
 
     def validate_data(self, instance, model_obj=None):
         facility = self.get_facility_obj()
